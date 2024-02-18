@@ -1,0 +1,61 @@
+<Project>
+  <!-- Sdk properties and targets are imported manually to make the ____DependsOn properties work -->
+  <!-- https://learn.microsoft.com/en-us/visualstudio/msbuild/how-to-use-project-sdk#use-the-import-element-anywhere-in-your-project -->
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <!-- On OutDir vs OutputPath: https://github.com/dotnet/msbuild/blob/0a0959f86064b7922731df2978b051a744e75072/src/Tasks/Microsoft.Common.CurrentVersion.targets#L103-L133 -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <RuntimeIdentifier>win-x86</RuntimeIdentifier>
+    <IsPublishable>false</IsPublishable>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <ModBuildFolder>mod/yourmodname</ModBuildFolder>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="HOOKS-Assembly-CSharp" HintPath="lib/HOOKS-Assembly-CSharp.dll" />
+    <Reference Include="PUBLIC-Assembly-CSharp" HintPath="lib/PUBLIC-Assembly-CSharp.dll" />
+    <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.Core" Version="5.4.17" /> <!-- The version of BepInEx shipped with Rain World -->
+    <PackageReference Include="UnityEngine.Modules" Version="2020.3.38" IncludeAssets="compile" /> <!-- The version of Unity shipped with Rain World -->
+  </ItemGroup>
+
+  <ItemGroup>
+    <ModAssetFiles Include="assets/**/*" />
+    <ModPluginFiles Include="$(TargetPath)" />
+  </ItemGroup>
+
+  <!--
+    The files must be written under $(OutDir) for incremental cleaning to work, as files outside that directory get ignored by the clean: https://github.com/dotnet/msbuild/blob/0a0959f86064b7922731df2978b051a744e75072/src/Tasks/Microsoft.Common.CurrentVersion.targets#L5580-L5602
+    To understand Inputs, Outputs and FileWrites, read https://github.com/xamarin/xamarin-android/blob/main/Documentation/guides/MSBuildBestPractices.md#incremental-builds
+  -->
+  <Target Name="BuildModFolder"
+      Inputs="@(ModAssetFiles);@(ModPluginFiles)"
+      Outputs="@(ModAssetFiles->'$(OutDir)$(ModBuildFolder)/%(RecursiveDir)%(Filename)%(Extension)');@(ModPluginFiles->'$(OutDir)$(ModBuildFolder)/plugins/%(Filename)%(Extension)')">
+    <Copy SourceFiles="@(ModAssetFiles)" DestinationFolder="$(OutDir)$(ModBuildFolder)/%(RecursiveDir)" />
+    <Copy SourceFiles="@(ModPluginFiles)" DestinationFolder="$(OutDir)$(ModBuildFolder)/plugins" />
+    <ItemGroup>
+      <FileWrites Include="@(ModAssetFiles->'$(OutDir)$(ModBuildFolder)/%(RecursiveDir)%(Filename)%(Extension)');@(ModPluginFiles->'$(OutDir)$(ModBuildFolder)/plugins/%(Filename)%(Extension)')" />
+    </ItemGroup>
+  </Target>
+
+  <!-- The ____DependsOn properties only work when defined after importing the Sdk targets -->
+  <!-- https://learn.microsoft.com/en-us/visualstudio/msbuild/how-to-extend-the-visual-studio-build-process#override-dependson-properties -->
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <!-- https://github.com/dotnet/msbuild/pull/5499 -->
+    <IncrementalCleanDependsOn>
+      BuildModFolder;
+      $(IncrementalCleanDependsOn)
+    </IncrementalCleanDependsOn>
+  </PropertyGroup>
+
+</Project>
